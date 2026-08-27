@@ -1,9 +1,11 @@
+import { createPublicClient } from "@/lib/supabase/public";
+
 /**
  * Los datos de las propiedades.
  *
- * Por ahora viven aquí, escritos a mano. En el proyecto 9 esta misma función
- * va a leer de Supabase y NADA MÁS del resto de la app va a cambiar. Eso es
- * a propósito: así se separa "de dónde vienen los datos" de "cómo se ven".
+ * Vienen de Supabase. El resto de la app no sabe nada de eso: pide
+ * `obtenerPropiedades()` y recibe `Propiedad[]`. Esa frontera es lo que
+ * permite cambiar la fuente de datos sin tocar la interfaz.
  */
 
 /** Tasa BCV de ejemplo. En Propiedash real se consulta, no se escribe a mano. */
@@ -24,30 +26,66 @@ export type Propiedad = {
   dashtag: string;
 };
 
-const PROPIEDADES: Propiedad[] = [
-  { dashcode: "GV4PE", titulo: "Apartamento en Prados del Este", zona: "Prados del Este", ciudad: "Caracas", precioUsd: 245000, operacion: "en_venta", habitaciones: 3, banos: 3, metros: 165, dashtag: "@georgecodec" },
-  { dashcode: "K7LPG", titulo: "Penthouse en Los Palos Grandes", zona: "Los Palos Grandes", ciudad: "Caracas", precioUsd: 420000, operacion: "en_venta", habitaciones: 4, banos: 4, metros: 280, dashtag: "@georgecodec" },
-  { dashcode: "M2CHU", titulo: "Casa en Chuao", zona: "Chuao", ciudad: "Caracas", precioUsd: 610000, operacion: "en_venta", habitaciones: 5, banos: 5, metros: 450, dashtag: "@mariainmuebles" },
-  { dashcode: "R9ALT", titulo: "Apartamento en Altamira", zona: "Altamira", ciudad: "Caracas", precioUsd: 1800, operacion: "en_alquiler", habitaciones: 2, banos: 2, metros: 110, dashtag: "@mariainmuebles" },
-  { dashcode: "T5MAR", titulo: "Apartamento en Maracaibo Centro", zona: "Centro", ciudad: "Maracaibo", precioUsd: 68000, operacion: "en_venta", habitaciones: 3, banos: 2, metros: 130, dashtag: "@zuliaprops" },
-  { dashcode: "W3VAL", titulo: "Townhouse en El Trigal", zona: "El Trigal", ciudad: "Valencia", precioUsd: 950, operacion: "en_alquiler", habitaciones: 3, banos: 3, metros: 190, dashtag: "@zuliaprops" },
-];
+/** Cómo se llaman las columnas EN LA BASE (snake_case, convención de Postgres). */
+type FilaPropiedad = {
+  dashcode: string;
+  titulo: string;
+  zona: string;
+  ciudad: string;
+  precio_usd: number;
+  operacion: Operacion;
+  habitaciones: number;
+  banos: number;
+  metros: number;
+  dashtag: string;
+};
 
 /**
- * Trae las propiedades. Es `async` a propósito, aunque hoy no haga falta:
- * en el proyecto 9 va a consultar Supabase y la firma no va a cambiar.
+ * Traduce una fila de la base (snake_case) al tipo que usa la app (camelCase).
+ *
+ * Esta función existe para que el resto de la app NO sepa cómo se llaman las
+ * columnas. Si mañana renombramos `precio_usd`, se arregla AQUÍ y en ningún
+ * otro lado. Sin esta capa, el nombre de una columna se filtra a 20 componentes.
  */
-export async function obtenerPropiedades(): Promise<Propiedad[]> {
-  return PROPIEDADES;
+function aPropiedad(fila: FilaPropiedad): Propiedad {
+  return {
+    dashcode: fila.dashcode,
+    titulo: fila.titulo,
+    zona: fila.zona,
+    ciudad: fila.ciudad,
+    precioUsd: Number(fila.precio_usd),
+    operacion: fila.operacion,
+    habitaciones: fila.habitaciones,
+    banos: fila.banos,
+    metros: fila.metros,
+    dashtag: fila.dashtag,
+  };
 }
 
 /**
- * Formatea en USD como lo muestra Propiedash: "$245,000".
+ * Trae las propiedades desde Supabase.
  *
- * OJO: NO usamos `style: "currency"`. Eso le pide al locale que decida cómo
- * escribir la moneda, y con es-VE devuelve "USD 245.000" — que no es la marca.
- * Formateamos el número y ponemos el símbolo nosotros.
+ * Antes esto devolvía un array escrito a mano. La firma NO cambió, así que
+ * `page.tsx` y `TarjetaPropiedad.tsx` siguen igual: no saben de dónde vienen
+ * los datos. Eso es el punto.
  */
+export async function obtenerPropiedades(): Promise<Propiedad[]> {
+  const supabase = createPublicClient();
+
+  const { data, error } = await supabase
+    .from("propiedades")
+    .select("dashcode, titulo, zona, ciudad, precio_usd, operacion, habitaciones, banos, metros, dashtag")
+    .order("precio_usd", { ascending: false });
+
+  if (error) {
+    console.error("[obtenerPropiedades] error de Supabase:", error.message);
+    throw error;
+  }
+
+  console.log(`[obtenerPropiedades] filas recibidas: ${data?.length ?? 0}`);
+  return (data ?? []).map(aPropiedad);
+}
+
 export function formatearUsd(monto: number): string {
   return `$${new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
