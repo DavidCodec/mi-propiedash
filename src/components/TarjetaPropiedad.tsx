@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatearBs, formatearUsd, type Propiedad } from "@/lib/propiedades";
 
 /**
@@ -60,6 +61,13 @@ export function TarjetaPropiedad({ propiedad }: { propiedad: Propiedad }) {
             Agente <b className="text-ink">{propiedad.dashtag}</b>
           </span>
         </div>
+
+        <Link
+          href={`/contactar/${propiedad.dashcode}`}
+          className="mt-3 block rounded-lg bg-accent px-4 py-2.5 text-center font-semibold text-ink"
+        >
+          Contactar
+        </Link>
       </div>
     </article>
   );
