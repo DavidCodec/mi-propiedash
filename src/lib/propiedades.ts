@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createPublicClient } from "@/lib/supabase/public";
 
 /**
@@ -78,8 +79,62 @@ const COLUMNAS =
  *
  * Al ser una función pura se puede probar sin base de datos ni navegador.
  */
-export function normalizarOperacion(valor: string | undefined): Operacion | undefined {
-  return valor === "en_venta" || valor === "en_alquiler" ? valor : undefined;
+export function normalizarOperacion(
+  valor: string | string[] | undefined,
+): Operacion | undefined {
+  const v = primerValor(valor);
+  return v === "en_venta" || v === "en_alquiler" ? v : undefined;
+}
+
+/**
+ * Un parámetro de la URL puede llegar repetido: ?ciudad=Caracas&ciudad=Valencia
+ * hace que Next entregue un ARRAY, no un string. Tomamos el primero y punto.
+ *
+ * Sin esto, un array se colaba hasta el `.eq()` de Supabase. Y el tipo lo
+ * ocultaba: declararlo como `string` no hace que lo sea — solo apaga a tsc.
+ */
+export function primerValor(valor: string | string[] | undefined): string | undefined {
+  if (Array.isArray(valor)) return valor[0];
+  return valor;
+}
+
+/**
+ * Normaliza la ciudad contra las que EXISTEN de verdad en la tabla.
+ *
+ * Si llega una ciudad inventada (?ciudad=Bogota), se ignora en vez de
+ * filtrar por ella: el usuario ve todas las propiedades, no cero resultados
+ * con un selector en blanco. Misma política que `operacion`, que antes era
+ * la única validada.
+ */
+export function normalizarCiudad(
+  valor: string | string[] | undefined,
+  ciudadesValidas: readonly string[],
+): string | undefined {
+  const v = primerValor(valor);
+  return v && ciudadesValidas.includes(v) ? v : undefined;
+}
+
+/**
+ * El título humano de una búsqueda. Pura, y usada en DOS sitios: el <title>
+ * de la página (SEO) y el <h1> visible. Que salgan de la misma función evita
+ * que se desincronicen, que es como pasa que Google indexe un título y el
+ * usuario vea otro.
+ */
+export function tituloDeBusqueda(
+  ciudad: string | undefined,
+  operacion: Operacion | undefined,
+): string {
+  const op =
+    operacion === "en_venta"
+      ? "en venta"
+      : operacion === "en_alquiler"
+        ? "en alquiler"
+        : undefined;
+
+  if (ciudad && op) return `Propiedades ${op} en ${ciudad}`;
+  if (ciudad) return `Propiedades en ${ciudad}`;
+  if (op) return `Propiedades ${op}`;
+  return "Buscar propiedades";
 }
 
 export type FiltrosBusqueda = {
@@ -122,7 +177,9 @@ export async function obtenerPropiedades(
   console.log(
     `[obtenerPropiedades] filtros=${JSON.stringify(filtros)} filas=${data?.length ?? 0}`,
   );
-  return (data as unknown as FilaPropiedad[]).map(aPropiedad);
+  // `?? []` es obligatorio: Supabase puede devolver data:null SIN error.
+  // Se había perdido en un refactor y habría reventado con TypeError.
+  return ((data ?? []) as unknown as FilaPropiedad[]).map(aPropiedad);
 }
 
 /**
@@ -131,12 +188,16 @@ export async function obtenerPropiedades(
  * Pide UNA sola columna, no la tabla entera, y deduplica aquí porque
  * PostgREST no expone `select distinct`.
  *
+ * Va envuelta en `cache()` de React: si se llama dos veces en la MISMA
+ * petición (generateMetadata y el componente, por ejemplo), la consulta se
+ * hace una sola vez. No es caché entre visitas: es por petición.
+ *
  * LÍMITE CONOCIDO: sigue leyendo una fila por propiedad. Con miles de
  * propiedades esto se resuelve con una vista, una función (RPC) que devuelva
  * las ciudades distintas, o una tabla de zonas propia — que es lo que hace
  * el sitio real con su geografía de estados/ciudades/zonas.
  */
-export async function obtenerCiudades(): Promise<string[]> {
+export const obtenerCiudades = cache(async (): Promise<string[]> => {
   const supabase = createPublicClient();
 
   const { data, error } = await supabase.from("propiedades").select("ciudad");
@@ -148,7 +209,7 @@ export async function obtenerCiudades(): Promise<string[]> {
 
   const ciudades = new Set((data ?? []).map((f) => (f as { ciudad: string }).ciudad));
   return [...ciudades].sort((a, b) => a.localeCompare(b, "es"));
-}
+});
 
 export function formatearUsd(monto: number): string {
   return `$${new Intl.NumberFormat("en-US", {

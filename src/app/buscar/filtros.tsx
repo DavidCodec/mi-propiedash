@@ -1,33 +1,42 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import type { Operacion } from "@/lib/propiedades";
 
 /**
- * Panel de filtros. Es un componente de cliente porque necesita reaccionar al
- * cambio de un selector y reescribir la URL. No lleva ningún dato sensible.
+ * Panel de filtros.
  *
- * El estado NO vive en este componente: vive en la URL. Este componente solo
- * la lee y la escribe. Por eso el filtro se puede compartir y Google lo puede
- * indexar: la URL es la única fuente de verdad.
+ * NO lee la URL. Recibe los filtros YA NORMALIZADOS por el servidor y solo
+ * los muestra y navega.
+ *
+ * Antes leía `useSearchParams()` por su cuenta, y eso causaba un bug: con
+ * ?ciudad=Bogota el servidor descartaba la ciudad (mostraba todas) pero este
+ * componente ponía value="Bogota" en un <select> sin esa opción, y al hidratar
+ * el selector quedaba en blanco. Dos sitios normalizando la misma URL de
+ * formas distintas. Ahora la normalización tiene UN solo dueño: el servidor.
  */
-export function Filtros({ ciudades }: { ciudades: string[] }) {
+export function Filtros({
+  ciudades,
+  ciudad,
+  operacion,
+}: {
+  ciudades: string[];
+  ciudad: string | undefined;
+  operacion: Operacion | undefined;
+}) {
   const router = useRouter();
-  const params = useSearchParams();
   const [pendiente, iniciar] = useTransition();
 
-  const ciudadActual = params.get("ciudad") ?? "";
-  const operacionActual = params.get("operacion") ?? "";
-
-  function actualizar(clave: string, valor: string) {
-    const nuevos = new URLSearchParams(params.toString());
-    // Un filtro vacío se BORRA del query, no se guarda como "". Así la URL
-    // de "todas las propiedades" queda limpia: /buscar, sin parámetros.
-    if (valor) nuevos.set(clave, valor);
-    else nuevos.delete(clave);
-
-    const query = nuevos.toString();
-    iniciar(() => router.push(query ? `/buscar?${query}` : "/buscar"));
+  // La URL se reconstruye desde los valores normalizados, no desde la URL
+  // actual: así un ?ciudad=Bogota o un parámetro repetido no sobreviven al
+  // primer clic. La URL queda siempre canónica.
+  function ir(siguiente: { ciudad?: string; operacion?: string }) {
+    const query = new URLSearchParams();
+    if (siguiente.ciudad) query.set("ciudad", siguiente.ciudad);
+    if (siguiente.operacion) query.set("operacion", siguiente.operacion);
+    const qs = query.toString();
+    iniciar(() => router.push(qs ? `/buscar?${qs}` : "/buscar"));
   }
 
   const select =
@@ -39,9 +48,9 @@ export function Filtros({ ciudades }: { ciudades: string[] }) {
         Ciudad
         <select
           className={select}
-          value={ciudadActual}
+          value={ciudad ?? ""}
           disabled={pendiente}
-          onChange={(e) => actualizar("ciudad", e.target.value)}
+          onChange={(e) => ir({ ciudad: e.target.value, operacion })}
         >
           <option value="">Todas las ciudades</option>
           {ciudades.map((c) => (
@@ -56,9 +65,9 @@ export function Filtros({ ciudades }: { ciudades: string[] }) {
         Operación
         <select
           className={select}
-          value={operacionActual}
+          value={operacion ?? ""}
           disabled={pendiente}
-          onChange={(e) => actualizar("operacion", e.target.value)}
+          onChange={(e) => ir({ ciudad, operacion: e.target.value })}
         >
           <option value="">Venta y alquiler</option>
           <option value="en_venta">En venta</option>
@@ -66,11 +75,11 @@ export function Filtros({ ciudades }: { ciudades: string[] }) {
         </select>
       </label>
 
-      {(ciudadActual || operacionActual) && (
+      {(ciudad || operacion) && (
         <button
           type="button"
           disabled={pendiente}
-          onClick={() => iniciar(() => router.push("/buscar"))}
+          onClick={() => ir({})}
           className="rounded-lg border border-line px-3 py-2 text-sm"
         >
           Limpiar filtros

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatearBs, formatearUsd, normalizarOperacion, TASA_BCV } from "./propiedades";
+import {
+  formatearBs,
+  formatearUsd,
+  normalizarCiudad,
+  normalizarOperacion,
+  primerValor,
+  TASA_BCV,
+  tituloDeBusqueda,
+} from "./propiedades";
 
 /**
  * Se prueba la LÓGICA con reglas, no el framework.
@@ -56,5 +64,76 @@ describe("normalizarOperacion", () => {
 
   it("no deja pasar intentos de inyección por la URL", () => {
     expect(normalizarOperacion("en_venta' OR 1=1--")).toBeUndefined();
+  });
+});
+
+describe("primerValor", () => {
+  it("devuelve el string tal cual", () => {
+    expect(primerValor("Caracas")).toBe("Caracas");
+  });
+
+  it("toma el primero cuando el parámetro llega repetido en la URL", () => {
+    // ?ciudad=Caracas&ciudad=Valencia → Next entrega un array
+    expect(primerValor(["Caracas", "Valencia"])).toBe("Caracas");
+  });
+
+  it("aguanta undefined y el array vacío", () => {
+    expect(primerValor(undefined)).toBeUndefined();
+    expect(primerValor([])).toBeUndefined();
+  });
+});
+
+describe("normalizarOperacion con arrays", () => {
+  it("no deja pasar un array hasta la consulta (era un bug real)", () => {
+    expect(normalizarOperacion(["en_alquiler", "en_venta"])).toBe("en_alquiler");
+    expect(normalizarOperacion(["basura"])).toBeUndefined();
+  });
+});
+
+describe("normalizarCiudad", () => {
+  const validas = ["Caracas", "Maracaibo", "Valencia"];
+
+  it("acepta una ciudad que existe", () => {
+    expect(normalizarCiudad("Caracas", validas)).toBe("Caracas");
+  });
+
+  it("ignora una ciudad inventada en vez de filtrar por ella", () => {
+    // Antes: ?ciudad=Bogota daba 0 resultados y el selector en blanco
+    expect(normalizarCiudad("Bogota", validas)).toBeUndefined();
+  });
+
+  it("es sensible a mayúsculas y acentos, como los datos de la tabla", () => {
+    expect(normalizarCiudad("caracas", validas)).toBeUndefined();
+  });
+
+  it("ignora arrays con valores inválidos y acepta el primero si es válido", () => {
+    expect(normalizarCiudad(["Valencia", "Bogota"], validas)).toBe("Valencia");
+    expect(normalizarCiudad(["Bogota", "Caracas"], validas)).toBeUndefined();
+  });
+
+  it("con la lista vacía no acepta nada", () => {
+    expect(normalizarCiudad("Caracas", [])).toBeUndefined();
+  });
+});
+
+describe("tituloDeBusqueda", () => {
+  it("combina ciudad y operación", () => {
+    expect(tituloDeBusqueda("Caracas", "en_alquiler")).toBe(
+      "Propiedades en alquiler en Caracas",
+    );
+    expect(tituloDeBusqueda("Valencia", "en_venta")).toBe("Propiedades en venta en Valencia");
+  });
+
+  it("funciona con un solo filtro", () => {
+    expect(tituloDeBusqueda("Caracas", undefined)).toBe("Propiedades en Caracas");
+    expect(tituloDeBusqueda(undefined, "en_venta")).toBe("Propiedades en venta");
+  });
+
+  it("sin filtros da el título genérico", () => {
+    expect(tituloDeBusqueda(undefined, undefined)).toBe("Buscar propiedades");
+  });
+
+  it("nunca devuelve vacío: un <title> vacío es un error de SEO", () => {
+    expect(tituloDeBusqueda(undefined, undefined).length).toBeGreaterThan(0);
   });
 });
