@@ -13,6 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Sin metadataBase, Next no puede convertir un canonical relativo
+  // ("/buscar?ciudad=Caracas") en la URL absoluta que exige el estándar.
+  // En un proyecto real esto viene de una variable de entorno.
+  metadataBase: new URL("https://mi-propiedash.vercel.app"),
   title: "Mi Propiedash · práctica",
   description: "Mini marketplace inmobiliario, proyecto de práctica del onboarding.",
 };
