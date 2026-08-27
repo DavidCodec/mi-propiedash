@@ -15,12 +15,20 @@ export default async function Home() {
           conversión a Bs a la tasa BCV
         </p>
         </div>
-        <Link
-          href="/panel"
-          className="rounded-lg border border-line bg-card px-4 py-2 text-sm font-semibold"
-        >
-          Panel del agente
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/publicar"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink"
+          >
+            Publicar propiedad
+          </Link>
+          <Link
+            href="/panel"
+            className="rounded-lg border border-line bg-card px-4 py-2 text-sm font-semibold"
+          >
+            Panel del agente
+          </Link>
+        </div>
       </header>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
