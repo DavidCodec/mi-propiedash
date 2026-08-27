@@ -17,6 +17,12 @@ export default async function Home() {
         </div>
         <div className="flex gap-2">
           <Link
+            href="/buscar"
+            className="rounded-lg border border-line bg-card px-4 py-2 text-sm font-semibold"
+          >
+            Buscar con filtros
+          </Link>
+          <Link
             href="/publicar"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink"
           >

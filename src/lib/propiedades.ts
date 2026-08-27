@@ -62,28 +62,92 @@ function aPropiedad(fila: FilaPropiedad): Propiedad {
   };
 }
 
+/** Las columnas que necesita la interfaz. Nunca `select("*")`: pedir solo lo
+ *  que se usa evita traer datos de más y que un cambio en la tabla se filtre
+ *  a la app sin que nadie lo note. */
+const COLUMNAS =
+  "dashcode, titulo, zona, ciudad, precio_usd, operacion, habitaciones, banos, metros, dashtag";
+
 /**
- * Trae las propiedades desde Supabase.
+ * Normaliza lo que llega en la URL a una operación válida.
  *
- * Antes esto devolvía un array escrito a mano. La firma NO cambió, así que
- * `page.tsx` y `TarjetaPropiedad.tsx` siguen igual: no saben de dónde vienen
- * los datos. Eso es el punto.
+ * Vive aquí y no dentro de la página porque es una REGLA DE NEGOCIO, no un
+ * detalle de esa pantalla: solo existen dos operaciones, y cualquier otra cosa
+ * que llegue (un typo, un enlace viejo, alguien jugando con la URL) se ignora
+ * en vez de producir una lista vacía sin explicación.
+ *
+ * Al ser una función pura se puede probar sin base de datos ni navegador.
  */
-export async function obtenerPropiedades(): Promise<Propiedad[]> {
+export function normalizarOperacion(valor: string | undefined): Operacion | undefined {
+  return valor === "en_venta" || valor === "en_alquiler" ? valor : undefined;
+}
+
+export type FiltrosBusqueda = {
+  ciudad?: string;
+  operacion?: Operacion;
+};
+
+/**
+ * Trae las propiedades desde Supabase, filtradas EN LA BASE DE DATOS.
+ *
+ * El filtro se aplica en Postgres (`.eq`), no en JavaScript: la base devuelve
+ * solo las filas que aplican y no traemos miles para mostrar doce. Los índices
+ * de `ciudad` y `operacion` (migración 00001) hacen que esto siga siendo
+ * rápido cuando la tabla crezca.
+ *
+ * Sin filtros devuelve todas, así que la portada la usa igual que antes.
+ */
+export async function obtenerPropiedades(
+  filtros: FiltrosBusqueda = {},
+): Promise<Propiedad[]> {
   const supabase = createPublicClient();
 
-  const { data, error } = await supabase
+  let consulta = supabase
     .from("propiedades")
-    .select("dashcode, titulo, zona, ciudad, precio_usd, operacion, habitaciones, banos, metros, dashtag")
+    .select(COLUMNAS)
     .order("precio_usd", { ascending: false });
+
+  // Solo se añade el filtro si viene con valor. Un `.eq("ciudad", undefined)`
+  // no es lo mismo que no filtrar.
+  if (filtros.ciudad) consulta = consulta.eq("ciudad", filtros.ciudad);
+  if (filtros.operacion) consulta = consulta.eq("operacion", filtros.operacion);
+
+  const { data, error } = await consulta;
 
   if (error) {
     console.error("[obtenerPropiedades] error de Supabase:", error.message);
     throw error;
   }
 
-  console.log(`[obtenerPropiedades] filas recibidas: ${data?.length ?? 0}`);
-  return (data ?? []).map(aPropiedad);
+  console.log(
+    `[obtenerPropiedades] filtros=${JSON.stringify(filtros)} filas=${data?.length ?? 0}`,
+  );
+  return (data as unknown as FilaPropiedad[]).map(aPropiedad);
+}
+
+/**
+ * Las ciudades que existen de verdad en la tabla, para el selector.
+ *
+ * Pide UNA sola columna, no la tabla entera, y deduplica aquí porque
+ * PostgREST no expone `select distinct`.
+ *
+ * LÍMITE CONOCIDO: sigue leyendo una fila por propiedad. Con miles de
+ * propiedades esto se resuelve con una vista, una función (RPC) que devuelva
+ * las ciudades distintas, o una tabla de zonas propia — que es lo que hace
+ * el sitio real con su geografía de estados/ciudades/zonas.
+ */
+export async function obtenerCiudades(): Promise<string[]> {
+  const supabase = createPublicClient();
+
+  const { data, error } = await supabase.from("propiedades").select("ciudad");
+
+  if (error) {
+    console.error("[obtenerCiudades]", error.message);
+    throw error;
+  }
+
+  const ciudades = new Set((data ?? []).map((f) => (f as { ciudad: string }).ciudad));
+  return [...ciudades].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 export function formatearUsd(monto: number): string {
