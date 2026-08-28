@@ -104,7 +104,23 @@ export default async function Comparar(props: PageProps<"/comparar">) {
         aria-label="Tabla comparativa, desplazable horizontalmente"
         className="mt-6 overflow-x-auto rounded-2xl border border-line bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
       >
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        {/* table-fixed + colgroup: sin esto cada columna se ajusta al largo
+            del título de su propiedad y quedan de anchos distintos, que se ve
+            descuidado y desalinea los valores.
+            El min-width crece con la cantidad de columnas para que el texto no
+            se apriete; el desbordamiento lo absorbe el contenedor con scroll. */}
+        <table
+          className="w-full table-fixed border-collapse text-sm"
+          style={{ minWidth: `${160 + propiedades.length * 190}px` }}
+        >
+          <colgroup>
+            {/* La de etiquetas: fija y angosta. */}
+            <col style={{ width: "160px" }} />
+            {/* Las de datos: partes iguales del espacio restante. */}
+            {propiedades.map((p) => (
+              <col key={p.dashcode} style={{ width: `${100 / propiedades.length}%` }} />
+            ))}
+          </colgroup>
           <caption className="sr-only">
             Comparación de {propiedades.length} propiedades por precio, precio por metro
             cuadrado, superficie, habitaciones y baños
@@ -126,8 +142,8 @@ export default async function Comparar(props: PageProps<"/comparar">) {
                   className="border-b border-l border-line p-4 text-left align-bottom"
                 >
                   <span className="font-mono text-xs uppercase text-dim">{p.dashcode}</span>
-                  <p className="mt-1 font-semibold leading-snug">{p.titulo}</p>
-                  <p className="text-xs font-normal text-muted">
+                  <p className="mt-1 font-semibold leading-snug hyphens-auto break-words">{p.titulo}</p>
+                  <p className="text-xs font-normal break-words text-muted">
                     {p.zona} · {p.ciudad}
                   </p>
                   <p className="mt-1 text-xs font-normal text-muted">
