@@ -27,13 +27,28 @@ export function normalizarCodigos(valor: string | string[] | undefined): string[
   return [...new Set(limpios)].slice(0, MAX_COMPARAR);
 }
 
-/** El precio por m², que es la métrica que de verdad compara dos propiedades. */
-export function precioPorMetro(p: Propiedad): number | null {
-  if (!p.metros || p.metros <= 0) return null;
-  return p.precioUsd / p.metros;
+/**
+ * Un valor que debe ser positivo para existir. Cero, negativo, NaN o Infinity
+ * significan AUSENCIA de dato, no el número cero.
+ *
+ * Sin esto había un bug grave: un precio nulo en la base pasa por
+ * `Number(null)` y se vuelve 0; la fila mostraba "$0" y —siendo "menor es
+ * mejor"— **se llevaba el badge de "mejor"**. Un dato faltante no solo se
+ * mostraba como cero: ganaba.
+ */
+function positivoOAusente(n: number): number | null {
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export type Criterio = "mayor-mejor" | "menor-mejor" | "sin-juicio";
+/** El precio por m², que es la métrica que de verdad compara dos propiedades. */
+export function precioPorMetro(p: Propiedad): number | null {
+  const metros = positivoOAusente(p.metros);
+  const precio = positivoOAusente(p.precioUsd);
+  if (metros === null || precio === null) return null;
+  return precio / metros;
+}
+
+export type Criterio = "mayor-mejor" | "menor-mejor";
 
 export type FilaComparacion = {
   etiqueta: string;
@@ -53,12 +68,9 @@ export type FilaComparacion = {
  * - Si todos los valores son iguales, NADIE gana. Marcar un empate como
  *   victoria es engañar.
  * - Si hay menos de dos valores válidos, no hay comparación posible.
- * - `sin-juicio` nunca marca ganador: hay datos que no son "mejores" ni
- *   "peores" (la ciudad, la operación). Decidir eso es del usuario.
+ * - Un valor ausente (null) no participa: no gana ni pierde.
  */
 function calcularGanadores(valores: (number | null)[], criterio: Criterio): number[] {
-  if (criterio === "sin-juicio") return [];
-
   const validos = valores
     .map((v, i) => ({ v, i }))
     .filter((x): x is { v: number; i: number } => x.v !== null);
@@ -92,7 +104,7 @@ export function construirFilas(props: Propiedad[]): FilaComparacion[] {
     {
       etiqueta: "Precio",
       criterio: "menor-mejor",
-      valores: props.map((p) => p.precioUsd),
+      valores: props.map((p) => positivoOAusente(p.precioUsd)),
       formato: usd,
     },
     {
@@ -104,7 +116,7 @@ export function construirFilas(props: Propiedad[]): FilaComparacion[] {
     {
       etiqueta: "Metros²",
       criterio: "mayor-mejor",
-      valores: props.map((p) => p.metros),
+      valores: props.map((p) => positivoOAusente(p.metros)),
       formato: (v) => `${entero(v)} m²`,
     },
     {
@@ -125,7 +137,7 @@ export function construirFilas(props: Propiedad[]): FilaComparacion[] {
 }
 
 /** Construye la URL compartible de una comparación. */
-export function urlComparacion(codigos: string[]): string {
+export function urlComparacion(codigos: readonly string[]): string {
   const q = new URLSearchParams();
   for (const c of codigos.slice(0, MAX_COMPARAR)) q.append("p", c);
   const s = q.toString();

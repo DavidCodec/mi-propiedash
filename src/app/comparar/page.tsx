@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cache } from "react";
 import { Columns2 } from "lucide-react";
 import {
   MAX_COMPARAR,
@@ -17,15 +18,25 @@ import { formatearBs, obtenerPropiedadesPorCodigos } from "@/lib/propiedades";
  * exactamente lo mismo. Y de paso es indexable.
  */
 
-async function cargar(searchParams: Promise<Record<string, string | string[] | undefined>>) {
+/**
+ * Resuelve los códigos de la URL y trae las propiedades.
+ *
+ * Envuelta en `cache()` de React porque la llaman generateMetadata Y el
+ * componente en la MISMA petición. Sin esto eran dos consultas idénticas a
+ * Supabase por cada visita: Next solo deduplica `fetch`, no las llamadas a
+ * un cliente de base de datos.
+ */
+const resolverComparacion = cache(async (
+  searchParams: Promise<Record<string, string | string[] | undefined>>,
+) => {
   const params = await searchParams;
   const codigos = normalizarCodigos(params.p);
   const propiedades = await obtenerPropiedadesPorCodigos(codigos);
   return { codigos, propiedades };
-}
+});
 
 export async function generateMetadata(props: PageProps<"/comparar">): Promise<Metadata> {
-  const { propiedades } = await cargar(props.searchParams);
+  const { propiedades } = await resolverComparacion(props.searchParams);
   if (propiedades.length < 2) {
     return { title: "Comparar propiedades" };
   }
@@ -37,7 +48,7 @@ export async function generateMetadata(props: PageProps<"/comparar">): Promise<M
 }
 
 export default async function Comparar(props: PageProps<"/comparar">) {
-  const { codigos, propiedades } = await cargar(props.searchParams);
+  const { codigos, propiedades } = await resolverComparacion(props.searchParams);
 
   if (propiedades.length < 2) {
     return (
@@ -85,7 +96,14 @@ export default async function Comparar(props: PageProps<"/comparar">) {
 
       {/* La tabla scrollea DENTRO de su contenedor: la página nunca scrollea
           horizontal. Es el reto real de esta pantalla en móvil. */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-card">
+      {/* tabIndex + role: sin ellos, una región con overflow no se puede
+          scrollear con el teclado (WCAG 2.1.1). */}
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Tabla comparativa, desplazable horizontalmente"
+        className="mt-6 overflow-x-auto rounded-2xl border border-line bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink"
+      >
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <caption className="sr-only">
             Comparación de {propiedades.length} propiedades por precio, precio por metro
@@ -170,7 +188,9 @@ export default async function Comparar(props: PageProps<"/comparar">) {
             </tr>
 
             <tr className="border-t border-line">
-              <th scope="row" className="sticky left-0 z-10 bg-card p-4" />
+              {/* <td> y no <th>: un encabezado de fila vacío hace que el
+                  lector de pantalla anuncie una fila sin nombre. */}
+              <td className="sticky left-0 z-10 bg-card p-4" />
               {propiedades.map((p) => (
                 <td key={p.dashcode} className="border-l border-line p-4">
                   <Link

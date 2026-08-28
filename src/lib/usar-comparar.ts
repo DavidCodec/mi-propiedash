@@ -6,16 +6,22 @@ import { MAX_COMPARAR } from "@/lib/comparar";
 const CLAVE = "propiedash:comparar";
 const EVENTO = "propiedash:comparar-cambio";
 
-/** Snapshot del servidor: siempre vacío y SIEMPRE la misma referencia. */
-const VACIO: string[] = [];
+/**
+ * Snapshot del servidor: siempre vacío y SIEMPRE la misma referencia.
+ *
+ * Congelado porque esta referencia SALE al público a través de `codigos`: si
+ * un consumidor le hiciera un `.sort()` o un `.push()`, corrompería el
+ * snapshot compartido de todos.
+ */
+const VACIO: readonly string[] = Object.freeze([]);
 
 // Caché de referencia. `useSyncExternalStore` exige que getSnapshot devuelva
 // la MISMA referencia mientras el dato no cambie; si devolviera un array nuevo
 // en cada llamada, React entraría en un bucle infinito de renders.
 let cacheRaw: string | null = null;
-let cacheValor: string[] = VACIO;
+let cacheValor: readonly string[] = VACIO;
 
-function leerSnapshot(): string[] {
+function leerSnapshot(): readonly string[] {
   let raw: string | null = null;
   try {
     // localStorage LANZA en modo privado de algunos navegadores y cuando el
@@ -51,7 +57,7 @@ function suscribir(alCambiar: () => void): () => void {
   };
 }
 
-function escribir(codigos: string[]) {
+function escribir(codigos: readonly string[]) {
   try {
     localStorage.setItem(CLAVE, JSON.stringify(codigos));
   } catch {
@@ -77,11 +83,14 @@ export function useComparar() {
 
   const alternar = useCallback((dashcode: string) => {
     const actuales = leerSnapshot();
+
+    // Lleno y no está: no se hace NADA. Antes se reescribía el mismo valor y
+    // se disparaba el evento, provocando un re-render sin cambio real.
+    if (!actuales.includes(dashcode) && actuales.length >= MAX_COMPARAR) return;
+
     const siguiente = actuales.includes(dashcode)
       ? actuales.filter((c) => c !== dashcode)
-      : actuales.length >= MAX_COMPARAR
-        ? actuales // lleno: no se agrega en silencio, el botón lo explica
-        : [...actuales, dashcode];
+      : [...actuales, dashcode];
     escribir(siguiente);
   }, []);
 

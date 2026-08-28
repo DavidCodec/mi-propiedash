@@ -40,7 +40,12 @@ export function BotonComparar({
     <button
       type="button"
       onClick={() => alternar(dashcode)}
-      disabled={bloqueado}
+      // NO se usa `disabled`: un botón deshabilitado no recibe foco y su
+      // etiqueta queda fuera del recorrido del teclado, y `title` no existe
+      // en táctil — o sea, el mensaje "ya tienes 3" NUNCA llegaría al
+      // usuario, que es justo lo contrario de lo que se quiere.
+      // Con `aria-disabled` el botón sigue enfocable y anunciable.
+      aria-disabled={bloqueado || undefined}
       aria-pressed={activa}
       aria-label={texto}
       title={texto}

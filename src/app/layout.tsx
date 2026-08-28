@@ -30,8 +30,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {children}
-        {/* pb-28: aire para que la barra fija no tape el final de la página */}
-        <div className="pb-28" aria-hidden="true" />
+        {/* El espaciador lo renderiza BarraComparar, no el layout: si lo
+            pusiéramos aquí reservaría 112px en TODAS las páginas, incluso
+            cuando la barra no se muestra. */}
         <BarraComparar />
       </body>
     </html>

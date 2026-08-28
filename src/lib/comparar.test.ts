@@ -137,3 +137,46 @@ describe("urlComparacion", () => {
     expect(normalizarCodigos(url.searchParams.getAll("p"))).toEqual(codigos);
   });
 });
+
+describe("un dato faltante NO puede ganar (bug real que encontró el gate)", () => {
+  const fila = (props: Propiedad[], etiqueta: string) =>
+    construirFilas(props).find((f) => f.etiqueta === etiqueta)!;
+
+  it("un precio en 0 se trata como AUSENTE, no como el precio más bajo", () => {
+    // Number(null) === 0. Si 0 se tomara como valor, con criterio
+    // "menor es mejor" el dato faltante GANARÍA la fila.
+    const f = fila([prop({ precioUsd: 0 }), prop({ precioUsd: 300000 })], "Precio");
+    expect(f.valores[0]).toBeNull();
+    expect(f.ganadores).not.toContain(0);
+    expect(f.ganadores).toEqual([]); // menos de dos valores válidos
+  });
+
+  it("un precio negativo tampoco gana", () => {
+    const f = fila([prop({ precioUsd: -5 }), prop({ precioUsd: 100 })], "Precio");
+    expect(f.valores[0]).toBeNull();
+    expect(f.ganadores).toEqual([]);
+  });
+
+  it("metros en 0 se trata como ausente", () => {
+    const f = fila([prop({ metros: 0 }), prop({ metros: 100 })], "Metros²");
+    expect(f.valores[0]).toBeNull();
+  });
+
+  it("NaN e Infinity se tratan como ausentes", () => {
+    const f = fila([prop({ precioUsd: NaN }), prop({ precioUsd: Infinity })], "Precio");
+    expect(f.valores).toEqual([null, null]);
+    expect(f.ganadores).toEqual([]);
+  });
+
+  it("con un precio ausente, el otro NO gana solo por existir", () => {
+    // Marcar "mejor" cuando no hay con qué comparar sería engañoso.
+    const f = fila([prop({ precioUsd: 0 }), prop({ precioUsd: 200000 })], "Precio");
+    expect(f.ganadores).toEqual([]);
+  });
+
+  it("0 habitaciones SÍ es un valor válido: un estudio existe", () => {
+    const f = fila([prop({ habitaciones: 0 }), prop({ habitaciones: 3 })], "Habitaciones");
+    expect(f.valores[0]).toBe(0);
+    expect(f.ganadores).toEqual([1]); // mayor es mejor: el 0 no gana
+  });
+});

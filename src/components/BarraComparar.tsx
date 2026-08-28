@@ -28,11 +28,16 @@ export function BarraComparar() {
   const suficientes = codigos.length >= 2;
 
   return (
-    <div
-      role="region"
-      aria-label="Propiedades seleccionadas para comparar"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 backdrop-blur"
-    >
+    <>
+      {/* Espaciador: solo existe cuando la barra existe, para que no tape el
+          final de la página. Va aquí y no en el layout. */}
+      <div className="h-24 shrink-0" aria-hidden="true" />
+
+      <div
+        role="region"
+        aria-label="Propiedades seleccionadas para comparar"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 backdrop-blur"
+      >
       <div className="mx-auto flex w-full max-w-6xl flex-nowrap items-center gap-2 px-4 py-3 sm:flex-wrap sm:gap-3">
         <Columns2 className="size-5 shrink-0 text-muted" aria-hidden="true" />
 
@@ -87,7 +92,8 @@ export function BarraComparar() {
             Elige otra para comparar
           </span>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
