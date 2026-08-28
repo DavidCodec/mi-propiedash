@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BotonComparar } from "@/components/BotonComparar";
 import { formatearBs, formatearUsd, type Propiedad } from "@/lib/propiedades";
 
 /**
@@ -62,12 +63,17 @@ export function TarjetaPropiedad({ propiedad }: { propiedad: Propiedad }) {
           </span>
         </div>
 
-        <Link
-          href={`/contactar/${propiedad.dashcode}`}
-          className="mt-3 block rounded-lg bg-accent px-4 py-2.5 text-center font-semibold text-ink"
-        >
-          Contactar
-        </Link>
+        <div className="mt-3 flex gap-2">
+          <Link
+            href={`/contactar/${propiedad.dashcode}`}
+            className="flex-1 rounded-lg bg-accent px-4 py-2.5 text-center font-semibold text-ink"
+          >
+            Contactar
+          </Link>
+          {/* Solo ícono en la tarjeta: no hay espacio para la etiqueta,
+              pero el aria-label la lleva. */}
+          <BotonComparar dashcode={propiedad.dashcode} titulo={propiedad.titulo} />
+        </div>
       </div>
     </article>
   );
