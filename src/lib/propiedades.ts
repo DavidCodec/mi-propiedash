@@ -183,6 +183,36 @@ export async function obtenerPropiedades(
 }
 
 /**
+ * Trae propiedades por una lista de DASHCODE, RESPETANDO el orden pedido.
+ *
+ * Postgres no garantiza el orden de un `in (...)`, así que se reordena aquí:
+ * si el usuario compartió ?p=A&p=B, las columnas tienen que salir A y luego B.
+ * Un orden distinto al del enlace confundiría a quien lo recibe.
+ */
+export async function obtenerPropiedadesPorCodigos(
+  codigos: string[],
+): Promise<Propiedad[]> {
+  if (codigos.length === 0) return [];
+
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("propiedades")
+    .select(COLUMNAS)
+    .in("dashcode", codigos);
+
+  if (error) {
+    console.error("[obtenerPropiedadesPorCodigos]", error.message);
+    throw error;
+  }
+
+  const encontradas = ((data ?? []) as unknown as FilaPropiedad[]).map(aPropiedad);
+  // Reordenar según lo pedido; las que no existan simplemente no aparecen.
+  return codigos
+    .map((c) => encontradas.find((p) => p.dashcode === c))
+    .filter((p): p is Propiedad => Boolean(p));
+}
+
+/**
  * Las ciudades que existen de verdad en la tabla, para el selector.
  *
  * Pide UNA sola columna, no la tabla entera, y deduplica aquí porque

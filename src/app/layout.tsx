@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { BarraComparar } from "@/components/BarraComparar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +28,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* El espaciador lo renderiza BarraComparar, no el layout: si lo
+            pusiéramos aquí reservaría 112px en TODAS las páginas, incluso
+            cuando la barra no se muestra. */}
+        <BarraComparar />
+      </body>
     </html>
   );
 }
